@@ -1,8 +1,12 @@
 import boto3, botocore
 
+from b2flow.python.tools.config import get
+
 
 class Driver:
-    def __init__(self, bucket_name: str, endpoint_url: str = 'http://localhost:6666'):
+    def __init__(self, bucket_name: str = get('B2FLOW__PYTHON__TOOLS__BUCKET'),
+                 endpoint_url: str = get('B2FLOW__PYTHON__TOOLS__HOSTNAME')):
+
         self.bucket_name = bucket_name
         session = boto3.session.Session(aws_access_key_id='identity', aws_secret_access_key='credential')
         config = boto3.session.Config(s3={'addressing_style': 'path'})

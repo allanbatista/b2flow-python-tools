@@ -43,6 +43,36 @@ class HandlerTestCase(unittest.TestCase):
         # compare all data
         self.assertEqual(array.tolist(), array_result.tolist())
 
+    def test_pickle_write_and_read(self):
+        storage_data = storage.path('pickle')
+
+        array = np.array([
+            [0.24, 0.56],
+            [0.97, .1098]
+        ], dtype=np.float16)
+
+        df = pd.DataFrame()
+        df['name'] = "Allan", "Arley"
+        df['age'] = [28, 29]
+        df['weight'] = np.array([87.3, 90.56], dtype=np.float32)
+        df['height'] = np.array([1.84, 1.85])
+
+        storage_data.handlers.pickle.write((df, array), 'example', compress=True)
+        df_result, array_result = storage_data.handlers.pickle.read('example')
+
+        # match shape
+        self.assertEqual(array.shape, array_result.shape)
+
+        # compare all data
+        self.assertEqual(array.tolist(), array_result.tolist())
+
+        # match dtype
+        self.assertEqual(df.dtypes.apply(lambda x: x.name).to_dict(),
+                         df_result.dtypes.apply(lambda x: x.name).to_dict())
+
+        # compare all data
+        self.assertEqual(df.values.tolist(), df_result.values.tolist())
+
 
 if __name__ == '__main__':
     unittest.main()
