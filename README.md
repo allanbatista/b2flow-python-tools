@@ -25,7 +25,13 @@ storage.path("teste").write(b"minha casa", "example.txt")
 Magic handlers abstract how to serialize and deserialize some kinds of data types.
 
 ```
-storage.handlers.pandas
+# write dataframe
+storage.handlers.pandas.write(df, "dataframe_name", batch_size=1024, compress=True)
+
+# read dataframe
+df = storage.handlers.pandas.read("dataframe_name")
+
+
 storage.handlers.numpy
 storage.handlers.pickle
 ```

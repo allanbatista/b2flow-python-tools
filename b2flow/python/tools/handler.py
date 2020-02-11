@@ -83,6 +83,14 @@ def decode(data, dtype):
 class PandasHandler(Handler):
 
     def write(self, df: pd.core.frame.DataFrame, name: str, batch_size=1024000, compress=False):
+        """
+        Persist a Pandas DataFrame in remote storage
+
+        @param df: Pandas DataFrame
+        @param name: Name will be stored
+        @param batch_size: How many items per batch
+        @param compress: Compress data with GZIP before save
+        """
         storage = self.storage.path(name)
         storage_data = storage.path("_data")
 
@@ -106,6 +114,12 @@ class PandasHandler(Handler):
                 storage_data.path(column).write(data, f"{str(count).zfill(10)}", compress=compress)
 
     def read(self, name: str):
+        """
+        Restore a persisted Pandas DataFrame in memory
+
+        @param name: Name of Pandas DataFrame will be restored
+        @return: pd.core.frame.DataFrame
+        """
         storage = self.storage.path(name)
         storage_data = storage.path("_data")
 
@@ -125,6 +139,14 @@ class PandasHandler(Handler):
 
 class NumpyHandler(Handler):
     def write(self, arr: np.array, name: str, batch_size=1024000, compress=False):
+        """
+        Persist a Numpy Array in remote storage
+
+        @param arr: Numpy Array that will be persisted
+        @param name: Name will be stored
+        @param batch_size: How many items per batch will be persisted
+        @param compress: Compress data with GZIP before save
+        """
         storage = self.storage.path(name)
         storage_data = storage.path("_data")
 
@@ -145,6 +167,12 @@ class NumpyHandler(Handler):
             storage_data.write(batch.tobytes(), f"{str(count).zfill(10)}", compress=compress)
 
     def read(self, name: str):
+        """
+        Restore a persisted Numpy Array in memory
+
+        @param name: Name of Numpy Array will be restored
+        @return: numpy.array
+        """
         storage = self.storage.path(name)
         storage_data = storage.path("_data")
 
@@ -162,6 +190,13 @@ class NumpyHandler(Handler):
 
 class PickleHandler(Handler):
     def write(self, obj, name: str, compress=False):
+        """
+        Persist a Pickle in remote storage
+
+        @param obj: Any Object that will be persisted
+        @param name: Name will be stored
+        @param compress: Compress data with GZIP before save
+        """
         storage = self.storage.path(name)
         storage_data = storage.path("_data")
 
@@ -175,6 +210,12 @@ class PickleHandler(Handler):
         storage_data.write(pk.dumps(obj, protocol=4), "data.pk", compress=compress)
 
     def read(self, name):
+        """
+        Restore a persisted Pickle in memory
+
+        @param name: Name of Pickle will be restored
+        @return: pickle
+        """
         storage_data = self.storage.path(name).path("_data")
         return pk.loads(storage_data.read("data.pk"))
 
