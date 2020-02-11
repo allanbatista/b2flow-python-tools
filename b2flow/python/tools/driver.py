@@ -1,6 +1,6 @@
 import boto3, botocore
 
-from b2flow.python.tools.config import get
+from b2flow.python.tools.config import get, logger
 
 
 class Driver:
@@ -19,8 +19,16 @@ class Driver:
             pass
 
     def write(self, body: bytes, filepath: str):
-        return self.client.put_object(Bucket=self.bucket_name, Body=body, Key=filepath)
+        self.client.put_object(Bucket=self.bucket_name, Body=body, Key=filepath)
+        logger.info("write", self.bucket_name, filepath, f"{len(body)}bytes")
 
     def read(self, filepath: str):
         obj = self.client.get_object(Bucket=self.bucket_name, Key=filepath)
-        return obj['Body'].read()
+        body = obj['Body'].read()
+        logger.info("read", self.bucket_name, filepath, f"{len(body)}bytes")
+        return body
+
+    def list(self, prefix: str = ""):
+        objects = self.client.list_objects(Bucket=self.bucket_name, Prefix=prefix).get("Contents") or []
+        logger.info("list", self.bucket_name, prefix, f"{len(objects)} objects")
+        return objects

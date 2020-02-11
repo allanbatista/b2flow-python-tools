@@ -1,4 +1,4 @@
-import os, io
+import os, io, re
 
 from b2flow.python.tools.handler import Handlers
 from b2flow.python.tools.driver import Driver
@@ -57,7 +57,7 @@ class Storage:
         """
         return os.path.join(self.directory, *args)
 
-    def write(self, data: bytes, filename: str, compress: bool = False):
+    def write(self, data: bytes, name: str, compress: bool = False):
         """
         write bytes to a remote file
 
@@ -67,7 +67,7 @@ class Storage:
 
         return None
         """
-        filepath = self.join(filename)
+        filepath = self.join(name)
         if compress:
             self.driver.write(gzip(data), filepath)
         else:
@@ -75,7 +75,7 @@ class Storage:
 
     def read(self, filename: str, as_memory_io: bool = False):
         """
-        read remote file as bytes
+        read remote file as bytesentiry
 
         string filename
 
@@ -87,3 +87,30 @@ class Storage:
             data = to_in_memory_io(data)
 
         return data
+
+    def list(self):
+        """
+        should list all files in a current prefix path
+
+        return Entry[]
+        """
+        entries = []
+        regex = re.compile('^%s' % self.directory)
+
+        for obj in self.driver.list(self.directory):
+            path, name = os.path.split(obj['Key'])
+            entries.append(Entry(self.path(regex.sub("", path)), name))
+
+        return entries
+
+
+class Entry:
+    def __init__(self, storage: Storage, name: str):
+        self.name = name
+        self.storage = storage
+
+    def read(self):
+        return self.storage.read(self.name)
+
+    def write(self, data: bytes, compress: bool = False):
+        self.storage.write(data, self.name, compress)
