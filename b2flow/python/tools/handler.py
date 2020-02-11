@@ -8,7 +8,7 @@ import pickle as pk
 class Metadata:
     @staticmethod
     def encode(data: dict):
-        return json.dumps(data).encode()
+        return json.dumps(data)
 
     @staticmethod
     def decode(data: bytes):
@@ -26,56 +26,61 @@ class Handler:
         pass
 
 
+def format_value(batch):
+    values = []
+
+    for value in batch:
+        if value is None:
+            values.append("")
+        else:
+            values.append(str(value).replace('\\', '\\\\'))
+
+    return values
+
+
+def format_bool(batch):
+    values = []
+
+    for value in batch:
+        if value is None:
+            values.append("")
+        else:
+            if value:
+                values.append("1")
+            else:
+                values.append("0")
+
+    return values
+
+
+def encode(batch, dtype):
+    if str(dtype) == str(np.dtype("bool")):
+        values = format_bool(batch)
+    else:
+        values = format_value(batch)
+
+    return "\n".join(values).encode()
+
+
+def decode(data, dtype):
+    batch = data.decode().split("\n")
+
+    if str(dtype) == str(np.dtype("bool")):
+        values = []
+        for value in batch:
+            if value == "1":
+                values.append(True)
+            elif value == "0":
+                values.append(False)
+            else:
+                values.append(None)
+    else:
+        values = batch
+
+    return values
+
+
 class PandasHandler(Handler):
-    def format_bool(self, batch):
-        values = []
-
-        for value in batch:
-            if value is None:
-                values.append("")
-            else:
-                if value:
-                    values.append("1")
-                else:
-                    values.append("0")
-
-        return values
-
-    def format_value(self, batch):
-        values = []
-
-        for value in batch:
-            if value is None:
-                values.append("")
-            else:
-                values.append(str(value).replace('\\', '\\\\'))
-
-        return values
-
-    def encode(self, batch, dtype):
-        if str(dtype) == str(np.dtype("bool")):
-            values = self.format_bool(batch)
-        else:
-            values = self.format_value(batch)
-
-        return "\n".join(values).encode()
-
-    def decode(self, bytes, dtype):
-        batch = bytes.decode().split("\n")
-
-        if str(dtype) == str(np.dtype("bool")):
-            values = []
-            for value in batch:
-                if value == "1":
-                    values.append(True)
-                elif value == "0":
-                    values.append(False)
-                else:
-                    values.append(None)
-        else:
-            values = batch
-
-        return values
 
     def write(self, df: pd.core.frame.DataFrame, name: str, batch_size=1024000, compress=False):
         storage = self.storage.path(name)
@@ -97,7 +102,7 @@ class PandasHandler(Handler):
             count = 0
             for i in range(0, len(df), batch_size):
                 count += 1
-                data = self.encode(values[i:i+batch_size], dtype)
+                data = encode(values[i:i+batch_size], dtype)
                 storage_data.path(column).write(data, f"{str(count).zfill(10)}", compress=compress)
 
     def read(self, name: str):
@@ -111,7 +116,7 @@ class PandasHandler(Handler):
             data[column] = []
 
             for entry in storage_data.path(column).list():
-                data[column] += self.decode(entry.read(), dtype)
+                data[column] += decode(entry.read(), dtype)
 
             data[column] = pd.Series(data[column], dtype=np.dtype(dtype))
 
