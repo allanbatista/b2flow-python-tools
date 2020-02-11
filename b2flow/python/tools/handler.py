@@ -1,7 +1,8 @@
-import json, io
+import json
 import pandas as pd
 import numpy as np
 import datetime
+import pickle as pk
 
 
 class Metadata:
@@ -21,7 +22,7 @@ class Handler:
     def write(self, obj, filename, compress: bool = False):
         pass
 
-    def read(self, filename):
+    def read(self, name):
         pass
 
 
@@ -76,8 +77,9 @@ class PandasHandler(Handler):
 
         return values
 
-    def write(self, df: pd.core.frame.DataFrame, name: str, batch_size=1024000, compress=True):
+    def write(self, df: pd.core.frame.DataFrame, name: str, batch_size=1024000, compress=False):
         storage = self.storage.path(name)
+        storage_data = storage.path("_data")
 
         metadata = {
             'columns': df.columns.tolist(),
@@ -87,7 +89,7 @@ class PandasHandler(Handler):
             'compress': compress
         }
 
-        storage.write(Metadata.encode(metadata), f"_metadata")
+        storage.write(Metadata.encode(metadata), "_metadata")
 
         for column, dtype in metadata['dtypes'].items():
             values = df[column]
@@ -96,17 +98,19 @@ class PandasHandler(Handler):
             for i in range(0, len(df), batch_size):
                 count += 1
                 data = self.encode(values[i:i+batch_size], dtype)
-                storage.path(column).write(data, f"{str(count).zfill(10)}", compress=True)
+                storage_data.path(column).write(data, f"{str(count).zfill(10)}", compress=compress)
 
     def read(self, name: str):
         storage = self.storage.path(name)
+        storage_data = storage.path("_data")
+
         metadata = Metadata.decode(storage.read("_metadata"))
 
         data = {}
         for column, dtype in metadata['dtypes'].items():
             data[column] = []
 
-            for entry in storage.path(column).list():
+            for entry in storage_data.path(column).list():
                 data[column] += self.decode(entry.read(), dtype)
 
             data[column] = pd.Series(data[column], dtype=np.dtype(dtype))
@@ -114,20 +118,65 @@ class PandasHandler(Handler):
         return pd.DataFrame(data)
 
 
-class DirectoryHandler:
-    def __init__(self, storage):
-        self.storage = storage
+class NumpyHandler(Handler):
+    def write(self, arr: np.array, name: str, batch_size=1024000, compress=False):
+        storage = self.storage.path(name)
+        storage_data = storage.path("_data")
 
-    def upload(self, remote_storage):
-        pass
+        metadata = {
+            'shape': list(arr.shape),
+            'dtype': str(arr.dtype),
+            'count': len(arr),
+            'created_at': datetime.datetime.now().isoformat(),
+            'compress': compress
+        }
 
-    def download(self, remote_storage):
-        pass
+        storage.write(Metadata.encode(metadata), "_metadata")
+
+        count = 0
+        for i in range(0, metadata["count"], batch_size):
+            count += 1
+            batch = arr[i:i+batch_size]
+            storage_data.write(batch.tobytes(), f"{str(count).zfill(10)}", compress=compress)
+
+    def read(self, name: str):
+        storage = self.storage.path(name)
+        storage_data = storage.path("_data")
+
+        metadata = Metadata.decode(storage.read("_metadata"))
+
+        dtype = np.dtype(metadata['dtype'])
+        shape = (-1, ) + tuple(metadata['shape'][1:])
+
+        results = []
+        for entry in storage_data.list():
+            results.append(np.frombuffer(entry.read(), dtype=dtype).reshape(shape))
+
+        return np.concatenate(results)
+
+
+class PickleHandler(Handler):
+    def write(self, obj, name: str, compress=False):
+        storage = self.storage.path(name)
+        storage_data = storage.path("_data")
+
+        metadata = {
+            'class': str(type(obj)),
+            'created_at': datetime.datetime.now().isoformat(),
+            'compress': compress
+        }
+
+        storage.write(Metadata.encode(metadata), "_metadata")
+        storage_data.write(pk.dumps(obj, protocol=4), "data.pk", compress=compress)
+
+    def read(self, name):
+        storage_data = self.storage.path(name).path("_data")
+        return pk.loads(storage_data.read("data.pk"))
 
 
 class Handlers:
     def __init__(self, storage):
         self.storage = storage
         self.pandas = PandasHandler(storage)
-        # self.numpy = NumpyHandler(storage)
-        # self.pickle = PickleHandler(storage)
+        self.numpy = NumpyHandler(storage)
+        self.pickle = PickleHandler(storage)
